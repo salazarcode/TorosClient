@@ -30,7 +30,7 @@ jobs:
       - name: Verificar directorio de despliegue
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            mkdir -p ${{ env.DEPLOY_PATH }}/src &&
+            mkdir -p ${{ env.DEPLOY_PATH }} &&
             chmod -R 755 ${{ env.DEPLOY_PATH }}
           "
 
@@ -43,12 +43,12 @@ jobs:
             --exclude 'obj/' \
             --exclude 'node_modules/' \
             --exclude '.docker/' \
-            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/src/
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
 
       - name: Build y Deploy con Docker
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            cd ${{ env.DEPLOY_PATH }}/src &&
+            cd ${{ env.DEPLOY_PATH }} &&
             # Construir con un tag específico para la versión
             docker build -t ${{ env.APP_NAME }}:latest \
               --no-cache \
