@@ -25,15 +25,20 @@ jobs:
       - name: Preparar directorio y copiar archivos
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            mkdir -p /var/www/toros.salazarcode.net
-            chmod 755 /var/www/toros.salazarcode.net
+            mkdir -p /var/www/toros.salazarcode.net/src &&
+            chmod -R 755 /var/www/toros.salazarcode.net
           '
-          rsync -avz --delete ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/toros.salazarcode.net/
+          # Copiamos todo el código fuente a una carpeta src
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'bin' \
+            --exclude 'obj' \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/toros.salazarcode.net/src/
 
       - name: Build y Deploy Docker
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            cd /var/www/toros.salazarcode.net &&
+            cd /var/www/toros.salazarcode.net/src &&
             docker build -t toros-client . &&
             docker stop toros-client || true &&
             docker rm toros-client || true &&
