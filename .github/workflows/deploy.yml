@@ -5,6 +5,10 @@ on:
     branches:
       - master
 
+env:
+  APP_NAME: toros-client
+  DEPLOY_PATH: /var/www/toros.salazarcode.net
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -20,35 +24,63 @@ jobs:
 
       - name: Agregar host a known_hosts
         run: |
+          mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Preparar directorio y copiar archivos
+      - name: Verificar directorio de despliegue
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            mkdir -p /var/www/toros.salazarcode.net/src &&
-            chmod -R 755 /var/www/toros.salazarcode.net
-          '
-          # Copiamos todo el código fuente a una carpeta src
-          rsync -avz --delete \
-            --exclude '.git' \
-            --exclude 'bin' \
-            --exclude 'obj' \
-            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/toros.salazarcode.net/src/
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            mkdir -p ${{ env.DEPLOY_PATH }}/src &&
+            chmod -R 755 ${{ env.DEPLOY_PATH }}
+          "
 
-      - name: Build y Deploy Docker
+      - name: Sincronizar código fuente
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            cd /var/www/toros.salazarcode.net/src &&
-            docker build -t toros-client . &&
-            docker stop toros-client || true &&
-            docker rm toros-client || true &&
+          rsync -avz --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'bin/' \
+            --exclude 'obj/' \
+            --exclude 'node_modules/' \
+            --exclude '.docker/' \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/src/
+
+      - name: Build y Deploy con Docker
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            cd ${{ env.DEPLOY_PATH }}/src &&
+            # Construir con un tag específico para la versión
+            docker build -t ${{ env.APP_NAME }}:latest \
+              --no-cache \
+              --pull \
+              . &&
+            # Detener y eliminar contenedor existente si existe
+            docker stop ${{ env.APP_NAME }} || true &&
+            docker rm ${{ env.APP_NAME }} || true &&
+            # Ejecutar nuevo contenedor
             docker run -d \
-              --name toros-client \
+              --name ${{ env.APP_NAME }} \
               -p 5001:80 \
               --restart always \
-              toros-client
-          '
+              --network bridge \
+              ${{ env.APP_NAME }}:latest &&
+            # Verificar que el contenedor está corriendo
+            docker ps | grep ${{ env.APP_NAME }}
+          "
 
       - name: Limpiar imágenes antiguas
+        if: success()
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'docker system prune -f'
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            docker system prune -af --volumes &&
+            docker image prune -af
+          "
+
+      - name: Verificar despliegue
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            if ! docker ps | grep -q ${{ env.APP_NAME }}; then
+              echo 'El contenedor no está ejecutándose' 
+              exit 1
+            fi
+          "
