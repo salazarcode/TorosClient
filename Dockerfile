@@ -1,4 +1,3 @@
-# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -16,31 +15,24 @@ RUN dotnet publish -c Release -o /app/publish
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
 
-# Copiamos los archivos publicados
-COPY --from=build /app/publish/wwwroot .
+# Copiamos los archivos publicados - AQUÍ ESTÁ EL CAMBIO IMPORTANTE
+COPY --from=build /app/publish/wwwroot/ .
 
-# Configuración para que Blazor WebAssembly funcione correctamente
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
+# Configuración de Nginx
 RUN echo 'server { \
     listen 80; \
-    location / { \
     root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
     try_files $uri $uri/ /index.html =404; \
     add_header Cache-Control "no-store, no-cache, must-revalidate"; \
     } \
-    # Configuración para archivos .wasm \
     types { \
     application/wasm wasm; \
     } \
-    # Configuración para archivos estáticos \
-    location /css { \
-    expires 1y; \
-    add_header Cache-Control "public"; \
-    } \
-    location /_framework { \
-    expires 1y; \
-    add_header Cache-Control "public"; \
-    } \
     }' > /etc/nginx/conf.d/default.conf
 
-# Exponemos el puerto 80
 EXPOSE 80
