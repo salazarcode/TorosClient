@@ -2,33 +2,26 @@
 @using Microsoft.AspNetCore.Components.Authorization
 
 <CascadingAuthenticationState>
-    <div class="page">
-        <div class="sidebar">
-            <NavMenu />
-        </div>
-        <main>
-            <div class="top-row px-4">
-                <AuthorizeView>
-                    <Authorized>
-                        <span>Bienvenido, @context.User.Identity?.Name!</span>
-                        <button class="btn btn-link" @onclick="HandleLogout">Cerrar Sesión</button>
-                    </Authorized>
-                    <NotAuthorized>
-                        <a href="/">Iniciar Sesión</a>
-                    </NotAuthorized>
-                </AuthorizeView>
-            </div>
-            <article class="content px-4">
-                <AuthorizeView>
-                    <Authorized>
+    <AuthorizeView>
+        <Authorized>
+            <div class="page">
+                <div class="sidebar">
+                    <NavMenu />
+                </div>
+                <main>
+                    <div class="top-row px-4">
+                    </div>
+                    <article class="content px-4">
                         @Body
-                    </Authorized>
-                    <NotAuthorized>
-                        <RedirectToLogin />
-                    </NotAuthorized>
-                </AuthorizeView>
-            </article>
-        </main>
-    </div>
+                    </article>
+                </main>
+            </div>
+        </Authorized>
+
+        <NotAuthorized>
+            <RedirectToLogin />
+        </NotAuthorized>
+
+    </AuthorizeView>
 </CascadingAuthenticationState>
 
