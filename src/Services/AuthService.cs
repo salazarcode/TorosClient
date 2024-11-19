@@ -24,7 +24,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("https://localhost:7263/Api/Auth/Login", loginRequest);
+            var response = await _httpClient.PostAsJsonAsync("https://toros-api.salazarcode.net/Api/Auth/Login", loginRequest);
 
             if (response.IsSuccessStatusCode)
             {
