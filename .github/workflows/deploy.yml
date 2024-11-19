@@ -35,22 +35,23 @@ jobs:
       - name: Agregar host a known_hosts
         run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Preparar directorio de despliegue
+      - name: Preparar directorio de despliegue con sudo
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            mkdir -p ${{ env.DEPLOY_PATH }}
-            chmod 755 ${{ env.DEPLOY_PATH }}
+          ssh deploy@${{ secrets.SERVER_HOST }} "
+            sudo mkdir -p ${{ env.DEPLOY_PATH }} &&
+            sudo chown -R deploy:deploy ${{ env.DEPLOY_PATH }} &&
+            sudo chmod -R 755 ${{ env.DEPLOY_PATH }}
           "
 
       - name: Desplegar archivos estáticos
         run: |
           rsync -avz --delete \
             ./publish/wwwroot/ \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
+            deploy@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
 
       - name: Verificar despliegue
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          ssh deploy@${{ secrets.SERVER_HOST }} "
             if [ ! -f ${{ env.DEPLOY_PATH }}/index.html ]; then
               echo 'No se encontró index.html en el directorio de despliegue'
               exit 1
