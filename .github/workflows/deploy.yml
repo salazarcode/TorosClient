@@ -1,21 +1,31 @@
 name: Build and Deploy Blazor Client
-
 on:
   push:
     branches:
       - master
-
 env:
-  APP_NAME: toros-client
-  DEPLOY_PATH: /var/www/toros.salazarcode.net
+  DEPLOY_PATH: /var/www/toros.salazarcode.com
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout código
         uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish --configuration Release --no-build --output ./publish
 
       - name: Configurar SSH
         uses: webfactory/ssh-agent@v0.5.4
@@ -23,64 +33,26 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Agregar host a known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Verificar directorio de despliegue
+      - name: Preparar directorio de despliegue
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            mkdir -p ${{ env.DEPLOY_PATH }} &&
-            chmod -R 755 ${{ env.DEPLOY_PATH }}
+            mkdir -p ${{ env.DEPLOY_PATH }}
+            chmod 755 ${{ env.DEPLOY_PATH }}
           "
 
-      - name: Sincronizar código fuente
+      - name: Desplegar archivos estáticos
         run: |
           rsync -avz --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude 'bin/' \
-            --exclude 'obj/' \
-            --exclude 'node_modules/' \
-            --exclude '.docker/' \
-            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
-
-      - name: Build y Deploy con Docker
-        run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            cd ${{ env.DEPLOY_PATH }} &&
-            # Construir con un tag específico para la versión
-            docker build -t ${{ env.APP_NAME }}:latest \
-              --no-cache \
-              --pull \
-              . &&
-            # Detener y eliminar contenedor existente si existe
-            docker stop ${{ env.APP_NAME }} || true &&
-            docker rm ${{ env.APP_NAME }} || true &&
-            # Ejecutar nuevo contenedor
-            docker run -d \
-              --name ${{ env.APP_NAME }} \
-              -p 5001:80 \
-              --restart always \
-              --network bridge \
-              ${{ env.APP_NAME }}:latest &&
-            # Verificar que el contenedor está corriendo
-            docker ps | grep ${{ env.APP_NAME }}
-          "
-
-      - name: Limpiar imágenes antiguas
-        if: success()
-        run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            docker system prune -af --volumes &&
-            docker image prune -af
-          "
+            ./publish/wwwroot/ \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
 
       - name: Verificar despliegue
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            if ! docker ps | grep -q ${{ env.APP_NAME }}; then
-              echo 'El contenedor no está ejecutándose' 
+            if [ ! -f ${{ env.DEPLOY_PATH }}/index.html ]; then
+              echo 'No se encontró index.html en el directorio de despliegue'
               exit 1
             fi
           "
